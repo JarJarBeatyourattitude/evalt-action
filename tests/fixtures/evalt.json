@@ -1,0 +1,17 @@
+{
+  "schema": "evalt-suite-v1",
+  "name": "offline-action-smoke",
+  "prompt": "Return one approved route label.",
+  "examples": [
+    {"id": "billing-1", "input": "Charged twice", "approved_output": "billing"},
+    {"id": "account-1", "input": "Reset link expired", "approved_output": "account"},
+    {"id": "technical-1", "input": "Website will not load", "approved_output": "technical"},
+    {"id": "billing-2", "input": "Refund missing", "approved_output": "billing"},
+    {"id": "technical-2", "input": "App freezes", "approved_output": "technical"}
+  ],
+  "models": ["synthetic/target-mini"],
+  "evaluator": {"type": "exact_text"},
+  "quality_threshold": 0.95,
+  "max_optimization_cost_usd": 0.1
+}
+

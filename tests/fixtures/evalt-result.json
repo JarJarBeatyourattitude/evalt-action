@@ -1,0 +1,28 @@
+{
+  "schema": "evalt-result-v1",
+  "quality_threshold": 0.95,
+  "quality_gate_status": "QUALIFIED_ROUTE_SELECTED",
+  "coverage_complete": true,
+  "total_provider_spend_usd": 0.0,
+  "winner_scope": "Offline fixture; no provider request was made.",
+  "winner": {
+    "model": "synthetic/target-mini",
+    "selected_prompt": "Return one approved route label.",
+    "holdout_pass_rate": 1.0,
+    "estimated_cost_per_successful_call_usd": 0.001,
+    "cases": [
+      {
+        "example_id": "technical-2",
+        "split": "final_test",
+        "difficulty": "typical",
+        "passed": true,
+        "score": 1.0,
+        "output": "technical",
+        "approved_output": "technical",
+        "reason": "Exact text matched",
+        "target_latency_ms": 10
+      }
+    ]
+  }
+}
+

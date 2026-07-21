@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m unittest discover -s tests -v
+
+  offline-action-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Gate frozen evidence without a provider call
+        id: evalt
+        uses: ./
+        with:
+          suite: tests/fixtures/evalt.json
+          result: tests/fixtures/evalt-result.json
+          optimize: "false"
+          min-pass-rate: "0.95"
+          require-complete-coverage: "true"
+          html-report: artifacts/evalt-report.html
+          junit-report: artifacts/evalt-junit.xml
+      - name: Verify stable action outputs
+        shell: bash
+        env:
+          STATUS: ${{ steps.evalt.outputs.status }}
+          MODEL: ${{ steps.evalt.outputs.selected-model }}
+          PASS_RATE: ${{ steps.evalt.outputs.final-test-pass-rate }}
+        run: |
+          test "$STATUS" = "PASS"
+          test "$MODEL" = "synthetic/target-mini"
+          test "$PASS_RATE" = "1.0"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: evalt-offline-evidence
+          path: |
+            tests/fixtures/evalt-result.json
+            artifacts/evalt-report.html
+            artifacts/evalt-junit.xml
