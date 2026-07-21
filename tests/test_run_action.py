@@ -19,7 +19,7 @@ class ActionContractTests(unittest.TestCase):
             "EVALT_ACTION_SUITE": "evalt.json",
             "EVALT_ACTION_RESULT": "out/result.json",
             "EVALT_ACTION_OPTIMIZE": "true",
-            "EVALT_ACTION_VERSION": "0.8.20",
+            "EVALT_ACTION_VERSION": "0.8.21",
             "EVALT_ACTION_MIN_PASS_RATE": "0.97",
             "EVALT_ACTION_MAX_COST_PER_SUCCESS": "0.002",
             "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE": "true",
@@ -52,7 +52,7 @@ class ActionContractTests(unittest.TestCase):
         self.assertIn("--json", command)
 
     def test_mutable_or_shell_shaped_versions_are_rejected(self):
-        for version in ("latest", "0.8.20; echo secret", "../0.8.20"):
+        for version in ("latest", "0.8.21; echo secret", "../0.8.21"):
             with self.subTest(version=version), patch.dict(
                 os.environ, {"EVALT_ACTION_VERSION": version}, clear=True
             ):
@@ -73,4 +73,3 @@ class ActionContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

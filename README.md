@@ -73,7 +73,7 @@ It starts no provider request and does not require an API key.
 | --- | --- | --- |
 | `suite` | `evalt.json` | Versioned Evalt suite and hard tournament budget. |
 | `optimize` | `true` | Run the tournament; `false` gates an existing result offline. |
-| `evalt-version` | `0.8.20` | Exact package version. Mutable `latest` installs are rejected. |
+| `evalt-version` | `0.8.21` | Exact package version. Mutable `latest` installs are rejected. |
 | `min-pass-rate` | `0.95` | Required frozen final-test accuracy. |
 | `max-cost-per-success` | empty | Optional USD ceiling for one successful production call. |
 | `require-complete-coverage` | `true` | Reject unfinished decision-relevant coverage. |
@@ -107,4 +107,3 @@ that used it.
 
 The [Evalt SDK](https://github.com/JarJarBeatyourattitude/evalt) and this action are MIT
 licensed. Documentation is at [evalt.dev/docs](https://evalt.dev/docs/).
-
