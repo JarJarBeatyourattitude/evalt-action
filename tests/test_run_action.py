@@ -19,7 +19,7 @@ class ActionContractTests(unittest.TestCase):
             "EVALT_ACTION_SUITE": "evalt.json",
             "EVALT_ACTION_RESULT": "out/result.json",
             "EVALT_ACTION_OPTIMIZE": "true",
-            "EVALT_ACTION_VERSION": "0.9.4",
+            "EVALT_ACTION_VERSION": "0.9.5",
             "EVALT_ACTION_MIN_PASS_RATE": "0.97",
             "EVALT_ACTION_MAX_COST_PER_SUCCESS": "0.002",
             "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE": "true",
