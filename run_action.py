@@ -51,9 +51,9 @@ class Settings:
 
     @classmethod
     def from_environment(cls) -> "Settings":
-        version = os.environ.get("EVALT_ACTION_VERSION", "0.9.3").strip()
+        version = os.environ.get("EVALT_ACTION_VERSION", "0.9.4").strip()
         if not PINNED_VERSION.fullmatch(version):
-            raise ValueError("evalt-version must be an exact release such as 0.9.3")
+            raise ValueError("evalt-version must be an exact release such as 0.9.4")
         try:
             min_pass_rate = float(os.environ.get("EVALT_ACTION_MIN_PASS_RATE", "0.95"))
         except ValueError as exc:

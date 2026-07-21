@@ -73,7 +73,7 @@ It starts no provider request and does not require an API key.
 | --- | --- | --- |
 | `suite` | `evalt.json` | Versioned Evalt suite and hard tournament budget. |
 | `optimize` | `true` | Run the tournament; `false` gates an existing result offline. |
-| `evalt-version` | `0.9.3` | Exact package version. Mutable `latest` installs are rejected. |
+| `evalt-version` | `0.9.4` | Exact package version. Mutable `latest` installs are rejected. |
 | `min-pass-rate` | `0.95` | Required frozen final-test accuracy. |
 | `max-cost-per-success` | empty | Optional USD ceiling for one successful production call. |
 | `require-complete-coverage` | `true` | Reject unfinished decision-relevant coverage. |
