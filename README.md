@@ -67,24 +67,54 @@ release gate:
 `optimize: "false"` performs suite validation, report generation, and the gate locally.
 It starts no provider request and does not require an API key.
 
+## Reject regressions against a frozen baseline
+
+Point `baseline` at an earlier result from the identical suite contract:
+
+```yaml
+- uses: JarJarBeatyourattitude/evalt-action@v1
+  with:
+    suite: evalt.json
+    result: candidate.json
+    baseline: baseline.json
+    optimize: "false"
+    max-regressions: "0"
+    max-quality-drop-pp: "0"
+    max-cost-increase-pct: "10"
+    max-p90-increase-ms: "250"
+```
+
+The Action fails closed if either suite hash is missing or changed. By default it also
+rejects every newly failing or missing frozen case and any aggregate quality drop. The
+job summary shows only decision metrics and case IDs; private case content stays in the
+local result artifacts.
+
 ## Inputs that change the decision
 
 | Input | Default | Meaning |
 | --- | --- | --- |
 | `suite` | `evalt.json` | Versioned Evalt suite and hard tournament budget. |
 | `optimize` | `true` | Run the tournament; `false` gates an existing result offline. |
-| `evalt-version` | `0.9.5` | Exact package version. Mutable `latest` installs are rejected. |
+| `baseline` | empty | Earlier result from the identical frozen suite; enables regression gating. |
+| `evalt-version` | `0.10.28` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
 | `min-pass-rate` | `0.95` | Required frozen final-test accuracy. |
 | `max-cost-per-success` | empty | Optional USD ceiling for one successful production call. |
 | `require-complete-coverage` | `true` | Reject unfinished decision-relevant coverage. |
+| `max-regressions` | `0` | Previously passing frozen cases allowed to fail. |
+| `max-quality-drop-pp` | `0` | Aggregate final-test quality drop allowed, in percentage points. |
+| `max-cost-increase-pct` | empty | Optional production-cost increase limit versus baseline. |
+| `max-p90-increase-ms` | empty | Optional p90 latency increase limit versus baseline. |
 | `fixed-prompt` | `false` | Disable rewrites and few-shot search. |
 | `max-parallel-models` | suite value | Override model-lane parallelism. |
 | `max-parallel-scenarios` | suite value | Override case-execution parallelism. |
 | `request-timeout-seconds` | suite value | One provider-response deadline, not tournament duration. |
 
-The action exposes `status`, `selected-model`, `final-test-pass-rate`,
-`cost-per-1000-successful-calls-usd`, and all three evidence paths as outputs. The same
-summary appears on the GitHub Actions run.
+The action exposes `status`, `selected-model`, `route-version`,
+`final-test-pass-rate`, `case-regressions`, `quality-delta-pp`,
+`cost-per-1000-successful-calls-usd`, and all three evidence
+paths as outputs. `route-version` is intentionally empty for a suite-only result and
+is populated only when the result artifact contains an explicit qualified route
+package ID. The same summary appears on the GitHub Actions run.
 
 ## Secret safety
 

@@ -15,6 +15,10 @@ inputs:
     description: Path where the machine-readable Evalt result is written or read.
     required: false
     default: evalt-result.json
+  baseline:
+    description: Optional earlier result from the identical frozen suite. Enables fail-closed regression gating without provider calls.
+    required: false
+    default: ""
   optimize:
     description: Run the budget-capped tournament before applying the gate. Set false to gate an existing result without provider calls.
     required: false
@@ -22,7 +26,7 @@ inputs:
   evalt-version:
     description: Exact PyPI version to install. Mutable aliases such as latest are rejected.
     required: false
-    default: 0.9.5
+    default: 0.10.28
   python-version:
     description: Python version used by the action.
     required: false
@@ -39,6 +43,22 @@ inputs:
     description: Fail when the tournament did not finish all decision-relevant coverage.
     required: false
     default: "true"
+  max-regressions:
+    description: Maximum previously passing frozen cases allowed to fail when baseline is set.
+    required: false
+    default: "0"
+  max-quality-drop-pp:
+    description: Maximum aggregate final-test quality drop in percentage points when baseline is set.
+    required: false
+    default: "0"
+  max-cost-increase-pct:
+    description: Optional maximum production cost increase versus baseline, in percent.
+    required: false
+    default: ""
+  max-p90-increase-ms:
+    description: Optional maximum p90 latency increase versus baseline, in milliseconds.
+    required: false
+    default: ""
   fixed-prompt:
     description: Disable prompt rewrites and few-shot search while still comparing model routes.
     required: false
@@ -71,9 +91,18 @@ outputs:
   selected-model:
     description: Model selected in the saved result, if one qualified.
     value: ${{ steps.run.outputs.selected-model }}
+  route-version:
+    description: Qualified route package ID when the result contains one; otherwise empty.
+    value: ${{ steps.run.outputs.route-version }}
   final-test-pass-rate:
     description: Measured final-test pass rate.
     value: ${{ steps.run.outputs.final-test-pass-rate }}
+  case-regressions:
+    description: Count of previously passing frozen cases that failed, when a baseline was set.
+    value: ${{ steps.run.outputs.case-regressions }}
+  quality-delta-pp:
+    description: Candidate quality change versus baseline in percentage points.
+    value: ${{ steps.run.outputs.quality-delta-pp }}
   cost-per-1000-successful-calls-usd:
     description: Measured production cost per 1,000 successful calls.
     value: ${{ steps.run.outputs.cost-per-1000-successful-calls-usd }}
@@ -100,11 +129,16 @@ runs:
       env:
         EVALT_ACTION_SUITE: ${{ inputs.suite }}
         EVALT_ACTION_RESULT: ${{ inputs.result }}
+        EVALT_ACTION_BASELINE: ${{ inputs.baseline }}
         EVALT_ACTION_OPTIMIZE: ${{ inputs.optimize }}
         EVALT_ACTION_VERSION: ${{ inputs.evalt-version }}
         EVALT_ACTION_MIN_PASS_RATE: ${{ inputs.min-pass-rate }}
         EVALT_ACTION_MAX_COST_PER_SUCCESS: ${{ inputs.max-cost-per-success }}
         EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE: ${{ inputs.require-complete-coverage }}
+        EVALT_ACTION_MAX_REGRESSIONS: ${{ inputs.max-regressions }}
+        EVALT_ACTION_MAX_QUALITY_DROP_PP: ${{ inputs.max-quality-drop-pp }}
+        EVALT_ACTION_MAX_COST_INCREASE_PCT: ${{ inputs.max-cost-increase-pct }}
+        EVALT_ACTION_MAX_P90_INCREASE_MS: ${{ inputs.max-p90-increase-ms }}
         EVALT_ACTION_FIXED_PROMPT: ${{ inputs.fixed-prompt }}
         EVALT_ACTION_MAX_PARALLEL_MODELS: ${{ inputs.max-parallel-models }}
         EVALT_ACTION_MAX_PARALLEL_SCENARIOS: ${{ inputs.max-parallel-scenarios }}

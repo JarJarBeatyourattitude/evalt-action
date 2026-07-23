@@ -5,11 +5,15 @@
   "coverage_complete": true,
   "total_provider_spend_usd": 0.0,
   "winner_scope": "Offline fixture; no provider request was made.",
+  "regression_suite": {
+    "suite_hash": "8f35d96b4f861c3e0e0422e89c6e0b8e2421f9f6c3cf5ea5338e863827dc82a9"
+  },
   "winner": {
     "model": "synthetic/target-mini",
     "selected_prompt": "Return one approved route label.",
     "holdout_pass_rate": 1.0,
     "estimated_cost_per_successful_call_usd": 0.001,
+    "target_latency_p90_ms": 10,
     "cases": [
       {
         "example_id": "technical-2",
@@ -25,4 +29,3 @@
     ]
   }
 }
-

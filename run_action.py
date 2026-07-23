@@ -11,6 +11,7 @@ from typing import Any, Mapping, Sequence
 
 
 PINNED_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9_.+!-]*)?$")
+CURRENT_HOSTED_VERSION = "0.10.28"
 
 
 def _bool(name: str, default: str) -> bool:
@@ -33,15 +34,39 @@ def _optional_number(name: str, *, integer: bool = False) -> str | None:
     return str(value)
 
 
+def _nonnegative_number(
+    name: str, default: str, *, integer: bool = False
+) -> int | float:
+    raw = os.environ.get(name, default).strip()
+    try:
+        value = int(raw) if integer else float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a non-negative number") from exc
+    if value < 0:
+        raise ValueError(f"{name} must be a non-negative number")
+    return value
+
+
+def _optional_nonnegative_number(name: str) -> float | None:
+    if not os.environ.get(name, "").strip():
+        return None
+    return float(_nonnegative_number(name, ""))
+
+
 @dataclass(frozen=True)
 class Settings:
     suite: Path
     result: Path
+    baseline: Path | None
     optimize: bool
     version: str
     min_pass_rate: float
     max_cost_per_success: str | None
     require_complete_coverage: bool
+    max_regressions: int
+    max_quality_drop_pp: float
+    max_cost_increase_pct: float | None
+    max_p90_increase_ms: float | None
     fixed_prompt: bool
     max_parallel_models: str | None
     max_parallel_scenarios: str | None
@@ -51,24 +76,43 @@ class Settings:
 
     @classmethod
     def from_environment(cls) -> "Settings":
-        version = os.environ.get("EVALT_ACTION_VERSION", "0.9.5").strip()
+        version = os.environ.get("EVALT_ACTION_VERSION", CURRENT_HOSTED_VERSION).strip()
         if not PINNED_VERSION.fullmatch(version):
-            raise ValueError("evalt-version must be an exact release such as 0.9.5")
+            raise ValueError(f"evalt-version must be an exact release such as {CURRENT_HOSTED_VERSION}")
         try:
             min_pass_rate = float(os.environ.get("EVALT_ACTION_MIN_PASS_RATE", "0.95"))
         except ValueError as exc:
             raise ValueError("min-pass-rate must be a number from 0 through 1") from exc
         if not 0 <= min_pass_rate <= 1:
             raise ValueError("min-pass-rate must be a number from 0 through 1")
-        return cls(
+        settings = cls(
             suite=Path(os.environ.get("EVALT_ACTION_SUITE", "evalt.json")),
             result=Path(os.environ.get("EVALT_ACTION_RESULT", "evalt-result.json")),
+            baseline=(
+                Path(os.environ["EVALT_ACTION_BASELINE"].strip())
+                if os.environ.get("EVALT_ACTION_BASELINE", "").strip()
+                else None
+            ),
             optimize=_bool("EVALT_ACTION_OPTIMIZE", "true"),
             version=version,
             min_pass_rate=min_pass_rate,
             max_cost_per_success=_optional_number("EVALT_ACTION_MAX_COST_PER_SUCCESS"),
             require_complete_coverage=_bool(
                 "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE", "true"
+            ),
+            max_regressions=int(
+                _nonnegative_number(
+                    "EVALT_ACTION_MAX_REGRESSIONS", "0", integer=True
+                )
+            ),
+            max_quality_drop_pp=float(
+                _nonnegative_number("EVALT_ACTION_MAX_QUALITY_DROP_PP", "0")
+            ),
+            max_cost_increase_pct=_optional_nonnegative_number(
+                "EVALT_ACTION_MAX_COST_INCREASE_PCT"
+            ),
+            max_p90_increase_ms=_optional_nonnegative_number(
+                "EVALT_ACTION_MAX_P90_INCREASE_MS"
             ),
             fixed_prompt=_bool("EVALT_ACTION_FIXED_PROMPT", "false"),
             max_parallel_models=_optional_number(
@@ -87,10 +131,26 @@ class Settings:
                 os.environ.get("EVALT_ACTION_JUNIT_REPORT", "evalt-junit.xml")
             ),
         )
+        if settings.baseline is None and (
+            settings.max_regressions != 0
+            or settings.max_quality_drop_pp != 0
+            or settings.max_cost_increase_pct is not None
+            or settings.max_p90_increase_ms is not None
+        ):
+            raise ValueError(
+                "Baseline regression inputs require the baseline input."
+            )
+        return settings
 
 
 def _evalt(*args: str) -> list[str]:
     return [sys.executable, "-m", "evalt", *args]
+
+
+def install_target(version: str) -> str:
+    if version == CURRENT_HOSTED_VERSION:
+        return f"https://evalt.onrender.com/python-sdk/dist/evalt-{version}-py3-none-any.whl"
+    return f"evalt=={version}"
 
 
 def optimize_command(settings: Settings) -> list[str]:
@@ -127,6 +187,25 @@ def gate_command(settings: Settings) -> list[str]:
         command.extend(["--max-cost-per-success", settings.max_cost_per_success])
     if settings.require_complete_coverage:
         command.append("--require-complete-coverage")
+    if settings.baseline is not None:
+        command.extend(
+            [
+                "--baseline",
+                str(settings.baseline),
+                "--max-regressions",
+                str(settings.max_regressions),
+                "--max-quality-drop-pp",
+                str(settings.max_quality_drop_pp),
+            ]
+        )
+        if settings.max_cost_increase_pct is not None:
+            command.extend(
+                ["--max-cost-increase-pct", str(settings.max_cost_increase_pct)]
+            )
+        if settings.max_p90_increase_ms is not None:
+            command.extend(
+                ["--max-p90-increase-ms", str(settings.max_p90_increase_ms)]
+            )
     return command
 
 
@@ -146,6 +225,23 @@ def _winner(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     if isinstance(winner, Mapping) and isinstance(winner.get("selected"), Mapping):
         winner = winner["selected"]
     return winner if isinstance(winner, Mapping) else {}
+
+
+def _route_version(
+    payload: Mapping[str, Any], winner: Mapping[str, Any]
+) -> str:
+    """Return an explicit route package ID without inventing one for suite-only runs."""
+
+    for candidate in (
+        payload.get("route_version"),
+        payload.get("current_package_id"),
+        winner.get("route_version"),
+        winner.get("current_package_id"),
+    ):
+        value = str(candidate or "").strip()
+        if value:
+            return value
+    return ""
 
 
 def _number(value: Any, default: float = 0.0) -> float:
@@ -171,13 +267,18 @@ def _write_summary(
     gate: Mapping[str, Any] | None = None,
     error: str | None = None,
 ) -> None:
+    """Write a concise, content-free GitHub decision summary."""
+
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not path:
         return
     payload = payload or {}
+    gate = gate or {}
     winner = _winner(payload)
     quality = _number(
-        winner.get("holdout_pass_rate") or winner.get("pass_rate")
+        winner.get("holdout_pass_rate")
+        if winner.get("holdout_pass_rate") is not None
+        else winner.get("pass_rate")
     )
     cost = winner.get("estimated_cost_per_successful_call_usd")
     model = str(winner.get("model") or "No qualified route")
@@ -195,10 +296,42 @@ def _write_summary(
         f"| Required pass rate | {settings.min_pass_rate:.1%} |",
         f"| Production cost / 1,000 successful calls | {'—' if cost is None else f'${_number(cost) * 1000:.6f}'} |",
         f"| Tournament provider spend | ${spend:.6f} |",
-        f"| Coverage | {str((gate or {}).get('coverage_complete', payload.get('coverage_complete', 'unknown')))} |",
+        f"| Coverage | {str(gate.get('coverage_complete', payload.get('coverage_complete', 'unknown')))} |",
         "",
         f"[JSON result]({settings.result}) · [HTML evidence]({settings.html_report}) · JUnit: `{settings.junit_report}`",
     ]
+    baseline_gate = gate.get("baseline_gate")
+    if isinstance(baseline_gate, Mapping):
+        delta = baseline_gate.get("quality_delta_percentage_points")
+        cost_delta = baseline_gate.get("cost_increase_percent")
+        p90_delta = baseline_gate.get("p90_increase_ms")
+        lines.extend(
+            [
+                "",
+                "## Frozen baseline",
+                "",
+                "| Decision evidence | Measured |",
+                "| --- | ---: |",
+                f"| Comparable suite contract | {'yes' if baseline_gate.get('comparable_contract') else 'no'} |",
+                f"| Quality delta | {'—' if delta is None else f'{_number(delta):+.3f} pp'} |",
+                f"| Case regressions | {int(_number(baseline_gate.get('regressions')))} / {settings.max_regressions} allowed |",
+                f"| Missing candidate cases | {int(_number(baseline_gate.get('missing_cases')))} |",
+                f"| Production cost increase | {'—' if cost_delta is None else f'{_number(cost_delta):+.3f}%'} |",
+                f"| p90 latency increase | {'—' if p90_delta is None else f'{_number(p90_delta):+.3f} ms'} |",
+            ]
+        )
+        baseline_failures = baseline_gate.get("failures") or []
+        if baseline_failures:
+            lines.extend(
+                ["", "### Why the candidate was rejected", ""]
+                + [f"- {item}" for item in baseline_failures]
+            )
+    absolute_gate = gate.get("absolute_gate")
+    if isinstance(absolute_gate, Mapping) and absolute_gate.get("failures"):
+        lines.extend(
+            ["", "## Absolute gate failures", ""]
+            + [f"- {item}" for item in absolute_gate["failures"]]
+        )
     if error:
         lines.extend(["", "## Why it stopped", "", error])
     lines.extend(
@@ -224,11 +357,11 @@ def main() -> int:
                 "pip",
                 "install",
                 "--disable-pip-version-check",
-                f"evalt=={settings.version}",
+                install_target(settings.version),
             ]
         )
         if install.returncode:
-            raise RuntimeError(f"Installing evalt=={settings.version} failed")
+            raise RuntimeError(f"Installing Evalt {settings.version} failed")
 
         validation = _run(_evalt("validate", str(settings.suite)))
         if validation.returncode:
@@ -278,12 +411,31 @@ def main() -> int:
         except json.JSONDecodeError:
             gate = {}
         winner = _winner(payload)
-        quality = _number(winner.get("holdout_pass_rate") or winner.get("pass_rate"))
+        quality = _number(
+            winner.get("holdout_pass_rate")
+            if winner.get("holdout_pass_rate") is not None
+            else winner.get("pass_rate")
+        )
         cost = winner.get("estimated_cost_per_successful_call_usd")
-        status = "PASS" if gate_process.returncode == 0 else "FAIL"
+        status = (
+            "PASS"
+            if gate_process.returncode == 0
+            else "FAIL"
+            if gate_process.returncode == 1
+            else "ERROR"
+        )
         _write_output("status", status)
         _write_output("selected-model", winner.get("model") or "")
+        _write_output("route-version", _route_version(payload, winner))
         _write_output("final-test-pass-rate", quality)
+        baseline_gate = gate.get("baseline_gate")
+        if not isinstance(baseline_gate, Mapping):
+            baseline_gate = {}
+        _write_output("case-regressions", baseline_gate.get("regressions", ""))
+        _write_output(
+            "quality-delta-pp",
+            baseline_gate.get("quality_delta_percentage_points", ""),
+        )
         _write_output(
             "cost-per-1000-successful-calls-usd",
             "" if cost is None else _number(cost) * 1000,
