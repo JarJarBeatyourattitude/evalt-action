@@ -145,6 +145,26 @@ available as Action outputs.
 off-by-default reductions of the privacy and network boundary. Use them only when the
 destination is authorized and trusted.
 
+## Publish the route decision to a workspace
+
+Create a **Publisher** capability from the dashboard's **Workspace access** panel, save
+it as a GitHub Actions secret, and pass it to the Action:
+
+```yaml
+- uses: JarJarBeatyourattitude/evalt-action@v1
+  with:
+    suite: evalt.json
+    workspace-token: ${{ secrets.EVALT_WORKSPACE_PUBLISHER }}
+```
+
+The Action accepts only an `evc_...` delegated capability; it intentionally rejects an
+`evw_...` owner key. A Publisher can synchronize bounded route progress and aggregate
+decisions but cannot list or read routes, remove a dashboard copy, or manage access.
+Prompts, inputs, approved answers, images, outputs, judge reasons, provider credentials,
+and the capability itself are absent from result, report, webhook, and workspace
+artifacts. Use `workspace-api-url` only for an HTTPS Evalt deployment; embedded URL
+credentials and plain HTTP are rejected.
+
 ## Inputs that change the decision
 
 | Input | Default | Meaning |
@@ -153,7 +173,7 @@ destination is authorized and trusted.
 | `optimize` | `true` | Run the tournament; `false` gates an existing result offline. |
 | `baseline` | empty | Earlier result from the identical frozen suite; enables regression gating. |
 | `library-root` | empty | Optional private local evidence-library directory used when `suite` or `baseline` is an immutable `@name` reference. |
-| `evalt-version` | `0.10.32` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
+| `evalt-version` | `0.11.0` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned edge wheel served by Evalt's hosted download. |
 | `min-pass-rate` | `0.95` | Required frozen final-test accuracy. |
 | `max-cost-per-success` | empty | Optional USD ceiling for one successful production call. |
 | `require-complete-coverage` | `true` | Reject unfinished decision-relevant coverage. |
@@ -181,6 +201,8 @@ destination is authorized and trusted.
 | `webhook-required` | `false` | Return Action error when the configured event cannot be delivered. |
 | `webhook-include-route-name` | `false` | Include the route label instead of only an opaque reference. |
 | `webhook-allow-private-network` | `false` | Permit a private/local destination; weakens the default SSRF boundary. |
+| `workspace-token` | empty | Delegated `evc_...` Publisher capability supplied from GitHub Actions secrets. Owner keys are rejected. |
+| `workspace-api-url` | `https://evalt.onrender.com` | HTTPS workspace API receiving privacy-bounded route metadata. |
 
 The action exposes `status`, `selected-model`, `route-version`,
 `final-test-pass-rate`, `case-regressions`, `quality-delta-pp`,

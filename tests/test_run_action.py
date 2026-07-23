@@ -21,7 +21,7 @@ class ActionContractTests(unittest.TestCase):
             "EVALT_ACTION_BASELINE": "out/baseline.json",
             "EVALT_ACTION_LIBRARY_ROOT": ".evalt/private-library",
             "EVALT_ACTION_OPTIMIZE": "true",
-            "EVALT_ACTION_VERSION": "0.10.32",
+            "EVALT_ACTION_VERSION": "0.11.0",
             "EVALT_ACTION_MIN_PASS_RATE": "0.97",
             "EVALT_ACTION_MAX_COST_PER_SUCCESS": "0.002",
             "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE": "true",
@@ -132,6 +132,23 @@ class ActionContractTests(unittest.TestCase):
         self.assertEqual(configured.webhook_destination_id, "incident-pipeline")
         self.assertNotIn("fixture-secret", repr(configured))
 
+    def test_ci_workspace_sync_accepts_only_delegated_capabilities_over_https(self):
+        delegated = f"evc_{'p' * 43}"
+        self.settings(
+            EVALT_WORKSPACE_TOKEN=delegated,
+            EVALT_DASHBOARD_API_URL="https://evalt.onrender.com",
+        )
+        for token in (f"evw_{'o' * 43}", "evc_short", "not-a-capability"):
+            with self.subTest(token=token), self.assertRaisesRegex(
+                ValueError, "delegated publisher capability"
+            ):
+                self.settings(EVALT_WORKSPACE_TOKEN=token)
+        with self.assertRaisesRegex(ValueError, "HTTPS URL"):
+            self.settings(
+                EVALT_WORKSPACE_TOKEN=delegated,
+                EVALT_DASHBOARD_API_URL="http://evalt.example.test",
+            )
+
     def test_baseline_tolerances_are_rejected_without_nonnegative_numbers(self):
         for name, value in (
             ("EVALT_ACTION_MAX_REGRESSIONS", "-1"),
@@ -155,8 +172,8 @@ class ActionContractTests(unittest.TestCase):
 
     def test_current_release_installs_the_exact_hosted_wheel(self):
         self.assertEqual(
-            install_target("0.10.32"),
-            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.32-py3-none-any.whl",
+            install_target("0.11.0"),
+            "https://evalt.onrender.com/python-sdk/dist/evalt-0.11.0-py3-none-any.whl",
         )
         self.assertEqual(install_target("0.10.16"), "evalt==0.10.16")
 
@@ -170,6 +187,8 @@ class ActionContractTests(unittest.TestCase):
         self.assertIn("library-root:", inputs)
         self.assertIn("custom-scorer-executable:", inputs)
         self.assertIn("webhook-secret:", inputs)
+        self.assertIn("workspace-token:", inputs)
+        self.assertIn("EVALT_WORKSPACE_TOKEN", metadata)
         self.assertIn("webhook-delivered:", metadata)
         self.assertIn("EVALT_ACTION_WEBHOOK_SECRET", metadata)
         self.assertIn("case-regressions:", metadata)

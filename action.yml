@@ -30,7 +30,7 @@ inputs:
   evalt-version:
     description: Exact PyPI version to install. Mutable aliases such as latest are rejected.
     required: false
-    default: 0.10.32
+    default: 0.11.0
   python-version:
     description: Python version used by the action.
     required: false
@@ -143,6 +143,14 @@ inputs:
     description: Explicitly allow a private/local destination address. Disabled by default.
     required: false
     default: "false"
+  workspace-token:
+    description: Optional evc_ publisher capability used to synchronize aggregate route progress. Pass a GitHub Actions secret, never an owner capability.
+    required: false
+    default: ""
+  workspace-api-url:
+    description: HTTPS Evalt workspace API receiving privacy-bounded route metadata.
+    required: false
+    default: https://evalt.onrender.com
   html-report:
     description: Path for the self-contained HTML evidence report.
     required: false
@@ -234,6 +242,8 @@ runs:
         EVALT_ACTION_WEBHOOK_REQUIRED: ${{ inputs.webhook-required }}
         EVALT_ACTION_WEBHOOK_INCLUDE_ROUTE_NAME: ${{ inputs.webhook-include-route-name }}
         EVALT_ACTION_WEBHOOK_ALLOW_PRIVATE_NETWORK: ${{ inputs.webhook-allow-private-network }}
+        EVALT_WORKSPACE_TOKEN: ${{ inputs.workspace-token }}
+        EVALT_DASHBOARD_API_URL: ${{ inputs.workspace-api-url }}
         EVALT_ACTION_HTML_REPORT: ${{ inputs.html-report }}
         EVALT_ACTION_JUNIT_REPORT: ${{ inputs.junit-report }}
       run: python "$GITHUB_ACTION_PATH/run_action.py"

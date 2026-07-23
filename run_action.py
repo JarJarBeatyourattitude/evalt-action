@@ -8,10 +8,11 @@ import re
 import subprocess
 import sys
 from typing import Any, Mapping, Sequence
+from urllib.parse import urlparse
 
 
 PINNED_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9_.+!-]*)?$")
-CURRENT_HOSTED_VERSION = "0.10.32"
+CURRENT_HOSTED_VERSION = "0.11.0"
 
 
 def _bool(name: str, default: str) -> bool:
@@ -169,6 +170,24 @@ class Settings:
             raise ValueError("webhook-timeout-seconds cannot exceed 30")
         if webhook_attempts > 5:
             raise ValueError("webhook-max-attempts cannot exceed 5")
+        workspace_token = os.environ.get("EVALT_WORKSPACE_TOKEN", "").strip()
+        workspace_api_url = os.environ.get(
+            "EVALT_DASHBOARD_API_URL", "https://evalt.onrender.com"
+        ).strip()
+        if workspace_token:
+            if not re.fullmatch(r"evc_[A-Za-z0-9_-]{40,}", workspace_token):
+                raise ValueError(
+                    "workspace-token must be an evc_ delegated publisher capability; "
+                    "owner workspace keys are intentionally rejected in CI"
+                )
+            parsed_workspace_url = urlparse(workspace_api_url)
+            if (
+                parsed_workspace_url.scheme != "https"
+                or not parsed_workspace_url.hostname
+                or parsed_workspace_url.username
+                or parsed_workspace_url.password
+            ):
+                raise ValueError("workspace-api-url must be an HTTPS URL without credentials")
         settings = cls(
             suite=Path(os.environ.get("EVALT_ACTION_SUITE", "evalt.json")),
             result=Path(os.environ.get("EVALT_ACTION_RESULT", "evalt-result.json")),
