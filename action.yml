@@ -26,7 +26,7 @@ inputs:
   evalt-version:
     description: Exact PyPI version to install. Mutable aliases such as latest are rejected.
     required: false
-    default: 0.10.28
+    default: 0.10.29
   python-version:
     description: Python version used by the action.
     required: false

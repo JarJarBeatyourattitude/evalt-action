@@ -96,7 +96,7 @@ local result artifacts.
 | `suite` | `evalt.json` | Versioned Evalt suite and hard tournament budget. |
 | `optimize` | `true` | Run the tournament; `false` gates an existing result offline. |
 | `baseline` | empty | Earlier result from the identical frozen suite; enables regression gating. |
-| `evalt-version` | `0.10.28` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
+| `evalt-version` | `0.10.29` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
 | `min-pass-rate` | `0.95` | Required frozen final-test accuracy. |
 | `max-cost-per-success` | empty | Optional USD ceiling for one successful production call. |
 | `require-complete-coverage` | `true` | Reject unfinished decision-relevant coverage. |

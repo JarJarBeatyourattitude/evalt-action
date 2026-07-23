@@ -20,7 +20,7 @@ class ActionContractTests(unittest.TestCase):
             "EVALT_ACTION_RESULT": "out/result.json",
             "EVALT_ACTION_BASELINE": "out/baseline.json",
             "EVALT_ACTION_OPTIMIZE": "true",
-            "EVALT_ACTION_VERSION": "0.10.28",
+            "EVALT_ACTION_VERSION": "0.10.29",
             "EVALT_ACTION_MIN_PASS_RATE": "0.97",
             "EVALT_ACTION_MAX_COST_PER_SUCCESS": "0.002",
             "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE": "true",
@@ -87,8 +87,8 @@ class ActionContractTests(unittest.TestCase):
 
     def test_current_release_installs_the_exact_hosted_wheel(self):
         self.assertEqual(
-            install_target("0.10.28"),
-            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.28-py3-none-any.whl",
+            install_target("0.10.29"),
+            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.29-py3-none-any.whl",
         )
         self.assertEqual(install_target("0.10.16"), "evalt==0.10.16")
 

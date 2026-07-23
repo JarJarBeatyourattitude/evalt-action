@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 
 
 PINNED_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9_.+!-]*)?$")
-CURRENT_HOSTED_VERSION = "0.10.28"
+CURRENT_HOSTED_VERSION = "0.10.29"
 
 
 def _bool(name: str, default: str) -> bool:
