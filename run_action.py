@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 
 
 PINNED_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9_.+!-]*)?$")
-CURRENT_HOSTED_VERSION = "0.10.29"
+CURRENT_HOSTED_VERSION = "0.10.30"
 
 
 def _bool(name: str, default: str) -> bool:
@@ -58,6 +58,7 @@ class Settings:
     suite: Path
     result: Path
     baseline: Path | None
+    library_root: Path | None
     optimize: bool
     version: str
     min_pass_rate: float
@@ -91,6 +92,11 @@ class Settings:
             baseline=(
                 Path(os.environ["EVALT_ACTION_BASELINE"].strip())
                 if os.environ.get("EVALT_ACTION_BASELINE", "").strip()
+                else None
+            ),
+            library_root=(
+                Path(os.environ["EVALT_ACTION_LIBRARY_ROOT"].strip())
+                if os.environ.get("EVALT_ACTION_LIBRARY_ROOT", "").strip()
                 else None
             ),
             optimize=_bool("EVALT_ACTION_OPTIMIZE", "true"),
@@ -172,6 +178,8 @@ def optimize_command(settings: Settings) -> list[str]:
         command.extend(["--max-parallel-scenarios", settings.max_parallel_scenarios])
     if settings.request_timeout_seconds:
         command.extend(["--request-timeout", settings.request_timeout_seconds])
+    if settings.library_root is not None:
+        command.extend(["--library-root", str(settings.library_root)])
     return command
 
 
@@ -206,6 +214,8 @@ def gate_command(settings: Settings) -> list[str]:
             command.extend(
                 ["--max-p90-increase-ms", str(settings.max_p90_increase_ms)]
             )
+    if settings.library_root is not None:
+        command.extend(["--library-root", str(settings.library_root)])
     return command
 
 
@@ -363,7 +373,12 @@ def main() -> int:
         if install.returncode:
             raise RuntimeError(f"Installing Evalt {settings.version} failed")
 
-        validation = _run(_evalt("validate", str(settings.suite)))
+        validation_command = _evalt("validate", str(settings.suite))
+        if settings.library_root is not None:
+            validation_command.extend(
+                ["--library-root", str(settings.library_root)]
+            )
+        validation = _run(validation_command)
         if validation.returncode:
             raise RuntimeError(
                 "Suite validation failed before any Evalt provider request was started"
@@ -390,6 +405,11 @@ def main() -> int:
                     str(settings.junit_report),
                     "--title",
                     "Evalt CI result",
+                    *(
+                        ["--library-root", str(settings.library_root)]
+                        if settings.library_root is not None
+                        else []
+                    ),
                 )
             )
             if report.returncode:

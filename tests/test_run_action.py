@@ -19,8 +19,9 @@ class ActionContractTests(unittest.TestCase):
             "EVALT_ACTION_SUITE": "evalt.json",
             "EVALT_ACTION_RESULT": "out/result.json",
             "EVALT_ACTION_BASELINE": "out/baseline.json",
+            "EVALT_ACTION_LIBRARY_ROOT": ".evalt/private-library",
             "EVALT_ACTION_OPTIMIZE": "true",
-            "EVALT_ACTION_VERSION": "0.10.29",
+            "EVALT_ACTION_VERSION": "0.10.30",
             "EVALT_ACTION_MIN_PASS_RATE": "0.97",
             "EVALT_ACTION_MAX_COST_PER_SUCCESS": "0.002",
             "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE": "true",
@@ -46,6 +47,10 @@ class ActionContractTests(unittest.TestCase):
         self.assertEqual(command[command.index("--max-parallel-models") + 1], "24")
         self.assertEqual(command[command.index("--max-parallel-scenarios") + 1], "48")
         self.assertEqual(command[command.index("--request-timeout") + 1], "900.0")
+        self.assertEqual(
+            Path(command[command.index("--library-root") + 1]),
+            Path(".evalt/private-library"),
+        )
         self.assertNotIn("OPENROUTER_API_KEY", " ".join(command))
         self.assertFalse(any("budget" in part for part in command))
 
@@ -63,6 +68,10 @@ class ActionContractTests(unittest.TestCase):
         self.assertEqual(command[command.index("--max-quality-drop-pp") + 1], "0.5")
         self.assertEqual(command[command.index("--max-cost-increase-pct") + 1], "10.0")
         self.assertEqual(command[command.index("--max-p90-increase-ms") + 1], "250.0")
+        self.assertEqual(
+            Path(command[command.index("--library-root") + 1]),
+            Path(".evalt/private-library"),
+        )
 
     def test_baseline_tolerances_are_rejected_without_nonnegative_numbers(self):
         for name, value in (
@@ -87,8 +96,8 @@ class ActionContractTests(unittest.TestCase):
 
     def test_current_release_installs_the_exact_hosted_wheel(self):
         self.assertEqual(
-            install_target("0.10.29"),
-            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.29-py3-none-any.whl",
+            install_target("0.10.30"),
+            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.30-py3-none-any.whl",
         )
         self.assertEqual(install_target("0.10.16"), "evalt==0.10.16")
 
@@ -99,6 +108,7 @@ class ActionContractTests(unittest.TestCase):
         self.assertIn("actions/setup-python@v7", metadata)
         self.assertIn("route-version:", metadata)
         self.assertIn("baseline:", inputs)
+        self.assertIn("library-root:", inputs)
         self.assertIn("case-regressions:", metadata)
 
     def test_route_version_output_is_explicit_and_empty_for_suite_only_results(self):

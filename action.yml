@@ -19,6 +19,10 @@ inputs:
     description: Optional earlier result from the identical frozen suite. Enables fail-closed regression gating without provider calls.
     required: false
     default: ""
+  library-root:
+    description: Optional private local evidence-library directory used by @name suite or baseline references.
+    required: false
+    default: ""
   optimize:
     description: Run the budget-capped tournament before applying the gate. Set false to gate an existing result without provider calls.
     required: false
@@ -26,7 +30,7 @@ inputs:
   evalt-version:
     description: Exact PyPI version to install. Mutable aliases such as latest are rejected.
     required: false
-    default: 0.10.29
+    default: 0.10.30
   python-version:
     description: Python version used by the action.
     required: false
@@ -130,6 +134,7 @@ runs:
         EVALT_ACTION_SUITE: ${{ inputs.suite }}
         EVALT_ACTION_RESULT: ${{ inputs.result }}
         EVALT_ACTION_BASELINE: ${{ inputs.baseline }}
+        EVALT_ACTION_LIBRARY_ROOT: ${{ inputs.library-root }}
         EVALT_ACTION_OPTIMIZE: ${{ inputs.optimize }}
         EVALT_ACTION_VERSION: ${{ inputs.evalt-version }}
         EVALT_ACTION_MIN_PASS_RATE: ${{ inputs.min-pass-rate }}
