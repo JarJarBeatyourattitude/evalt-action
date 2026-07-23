@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 
 
 PINNED_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9_.+!-]*)?$")
-CURRENT_HOSTED_VERSION = "0.10.30"
+CURRENT_HOSTED_VERSION = "0.10.31"
 
 
 def _bool(name: str, default: str) -> bool:
@@ -72,6 +72,13 @@ class Settings:
     max_parallel_models: str | None
     max_parallel_scenarios: str | None
     request_timeout_seconds: str | None
+    custom_scorer_id: str | None
+    custom_scorer_version: str | None
+    custom_scorer_executable: str | None
+    custom_scorer_arguments: tuple[str, ...]
+    custom_scorer_timeout_seconds: str
+    custom_scorer_max_input_bytes: str
+    custom_scorer_max_output_bytes: str
     html_report: Path
     junit_report: Path
 
@@ -86,6 +93,50 @@ class Settings:
             raise ValueError("min-pass-rate must be a number from 0 through 1") from exc
         if not 0 <= min_pass_rate <= 1:
             raise ValueError("min-pass-rate must be a number from 0 through 1")
+        scorer_id = os.environ.get("EVALT_ACTION_CUSTOM_SCORER_ID", "").strip()
+        scorer_version = os.environ.get(
+            "EVALT_ACTION_CUSTOM_SCORER_VERSION", ""
+        ).strip()
+        scorer_executable = os.environ.get(
+            "EVALT_ACTION_CUSTOM_SCORER_EXECUTABLE", ""
+        ).strip()
+        scorer_fields = (scorer_id, scorer_version, scorer_executable)
+        if any(scorer_fields) and not all(scorer_fields):
+            raise ValueError(
+                "custom-scorer-id, custom-scorer-version, and "
+                "custom-scorer-executable must be set together"
+            )
+        try:
+            raw_scorer_arguments = json.loads(
+                os.environ.get(
+                    "EVALT_ACTION_CUSTOM_SCORER_ARGUMENTS_JSON", "[]"
+                )
+            )
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "custom-scorer-arguments-json must be a JSON array of strings"
+            ) from exc
+        if (
+            not isinstance(raw_scorer_arguments, list)
+            or any(not isinstance(value, str) for value in raw_scorer_arguments)
+        ):
+            raise ValueError(
+                "custom-scorer-arguments-json must be a JSON array of strings"
+            )
+        if raw_scorer_arguments and not all(scorer_fields):
+            raise ValueError(
+                "custom-scorer-arguments-json requires the scorer ID, version, "
+                "and executable"
+            )
+        scorer_timeout = _optional_number(
+            "EVALT_ACTION_CUSTOM_SCORER_TIMEOUT_SECONDS"
+        ) or "10.0"
+        scorer_max_input = _optional_number(
+            "EVALT_ACTION_CUSTOM_SCORER_MAX_INPUT_BYTES", integer=True
+        ) or "8388608"
+        scorer_max_output = _optional_number(
+            "EVALT_ACTION_CUSTOM_SCORER_MAX_OUTPUT_BYTES", integer=True
+        ) or "65536"
         settings = cls(
             suite=Path(os.environ.get("EVALT_ACTION_SUITE", "evalt.json")),
             result=Path(os.environ.get("EVALT_ACTION_RESULT", "evalt-result.json")),
@@ -130,6 +181,13 @@ class Settings:
             request_timeout_seconds=_optional_number(
                 "EVALT_ACTION_REQUEST_TIMEOUT_SECONDS"
             ),
+            custom_scorer_id=scorer_id or None,
+            custom_scorer_version=scorer_version or None,
+            custom_scorer_executable=scorer_executable or None,
+            custom_scorer_arguments=tuple(raw_scorer_arguments),
+            custom_scorer_timeout_seconds=scorer_timeout,
+            custom_scorer_max_input_bytes=scorer_max_input,
+            custom_scorer_max_output_bytes=scorer_max_output,
             html_report=Path(
                 os.environ.get("EVALT_ACTION_HTML_REPORT", "evalt-report.html")
             ),
@@ -178,6 +236,23 @@ def optimize_command(settings: Settings) -> list[str]:
         command.extend(["--max-parallel-scenarios", settings.max_parallel_scenarios])
     if settings.request_timeout_seconds:
         command.extend(["--request-timeout", settings.request_timeout_seconds])
+    if settings.custom_scorer_id:
+        command.extend([
+            "--custom-scorer-id",
+            settings.custom_scorer_id,
+            "--custom-scorer-version",
+            str(settings.custom_scorer_version),
+            "--custom-scorer-executable",
+            str(settings.custom_scorer_executable),
+            "--custom-scorer-timeout",
+            settings.custom_scorer_timeout_seconds,
+            "--custom-scorer-max-input-bytes",
+            settings.custom_scorer_max_input_bytes,
+            "--custom-scorer-max-output-bytes",
+            settings.custom_scorer_max_output_bytes,
+        ])
+        for argument in settings.custom_scorer_arguments:
+            command.append(f"--custom-scorer-arg={argument}")
     if settings.library_root is not None:
         command.extend(["--library-root", str(settings.library_root)])
     return command

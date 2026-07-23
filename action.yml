@@ -30,7 +30,7 @@ inputs:
   evalt-version:
     description: Exact PyPI version to install. Mutable aliases such as latest are rejected.
     required: false
-    default: 0.10.30
+    default: 0.10.31
   python-version:
     description: Python version used by the action.
     required: false
@@ -79,6 +79,34 @@ inputs:
     description: Optional wall-clock deadline for one provider response, not the tournament.
     required: false
     default: ""
+  custom-scorer-id:
+    description: Optional trusted local scorer ID. The suite cannot select executable code.
+    required: false
+    default: ""
+  custom-scorer-version:
+    description: Version of the trusted local scorer registered for this run.
+    required: false
+    default: ""
+  custom-scorer-executable:
+    description: Executable for the trusted repository-local scorer; launched directly without a shell.
+    required: false
+    default: ""
+  custom-scorer-arguments-json:
+    description: JSON array of literal argv items passed to the scorer executable.
+    required: false
+    default: "[]"
+  custom-scorer-timeout-seconds:
+    description: Per-case local scorer timeout in seconds.
+    required: false
+    default: "10"
+  custom-scorer-max-input-bytes:
+    description: Maximum serialized scorer request size per case.
+    required: false
+    default: "8388608"
+  custom-scorer-max-output-bytes:
+    description: Maximum scorer stdout or stderr size per case.
+    required: false
+    default: "65536"
   html-report:
     description: Path for the self-contained HTML evidence report.
     required: false
@@ -148,6 +176,13 @@ runs:
         EVALT_ACTION_MAX_PARALLEL_MODELS: ${{ inputs.max-parallel-models }}
         EVALT_ACTION_MAX_PARALLEL_SCENARIOS: ${{ inputs.max-parallel-scenarios }}
         EVALT_ACTION_REQUEST_TIMEOUT_SECONDS: ${{ inputs.request-timeout-seconds }}
+        EVALT_ACTION_CUSTOM_SCORER_ID: ${{ inputs.custom-scorer-id }}
+        EVALT_ACTION_CUSTOM_SCORER_VERSION: ${{ inputs.custom-scorer-version }}
+        EVALT_ACTION_CUSTOM_SCORER_EXECUTABLE: ${{ inputs.custom-scorer-executable }}
+        EVALT_ACTION_CUSTOM_SCORER_ARGUMENTS_JSON: ${{ inputs.custom-scorer-arguments-json }}
+        EVALT_ACTION_CUSTOM_SCORER_TIMEOUT_SECONDS: ${{ inputs.custom-scorer-timeout-seconds }}
+        EVALT_ACTION_CUSTOM_SCORER_MAX_INPUT_BYTES: ${{ inputs.custom-scorer-max-input-bytes }}
+        EVALT_ACTION_CUSTOM_SCORER_MAX_OUTPUT_BYTES: ${{ inputs.custom-scorer-max-output-bytes }}
         EVALT_ACTION_HTML_REPORT: ${{ inputs.html-report }}
         EVALT_ACTION_JUNIT_REPORT: ${{ inputs.junit-report }}
       run: python "$GITHUB_ACTION_PATH/run_action.py"

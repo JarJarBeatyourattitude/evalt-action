@@ -89,6 +89,35 @@ rejects every newly failing or missing frozen case and any aggregate quality dro
 job summary shows only decision metrics and case IDs; private case content stays in the
 local result artifacts.
 
+## Run a repository-local custom scorer
+
+A custom suite stores only its scorer identity:
+
+```json
+{"type":"custom","scorer_id":"domain-rubric","scorer_version":"1.0"}
+```
+
+Register reviewed repository code separately in the workflow:
+
+```yaml
+- uses: JarJarBeatyourattitude/evalt-action@v1
+  with:
+    suite: evalt.json
+    custom-scorer-id: domain-rubric
+    custom-scorer-version: "1.0"
+    custom-scorer-executable: python3
+    custom-scorer-arguments-json: '["tools/score.py"]'
+    custom-scorer-timeout-seconds: "5"
+    custom-scorer-max-input-bytes: "8388608"
+    custom-scorer-max-output-bytes: "65536"
+```
+
+The arguments input is parsed as a JSON string array and forwarded as literal argv.
+There is no shell. A downloaded suite cannot supply or override the executable. The
+scorer receives strict JSON on stdin, must return one bounded score object on stdout,
+and does not inherit provider credentials by default. Only run custom scorers from
+trusted branches; they are executable repository code.
+
 ## Inputs that change the decision
 
 | Input | Default | Meaning |
@@ -97,7 +126,7 @@ local result artifacts.
 | `optimize` | `true` | Run the tournament; `false` gates an existing result offline. |
 | `baseline` | empty | Earlier result from the identical frozen suite; enables regression gating. |
 | `library-root` | empty | Optional private local evidence-library directory used when `suite` or `baseline` is an immutable `@name` reference. |
-| `evalt-version` | `0.10.30` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
+| `evalt-version` | `0.10.31` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
 | `min-pass-rate` | `0.95` | Required frozen final-test accuracy. |
 | `max-cost-per-success` | empty | Optional USD ceiling for one successful production call. |
 | `require-complete-coverage` | `true` | Reject unfinished decision-relevant coverage. |
@@ -109,6 +138,13 @@ local result artifacts.
 | `max-parallel-models` | suite value | Override model-lane parallelism. |
 | `max-parallel-scenarios` | suite value | Override case-execution parallelism. |
 | `request-timeout-seconds` | suite value | One provider-response deadline, not tournament duration. |
+| `custom-scorer-id` | empty | Trusted local scorer ID required by a custom suite. |
+| `custom-scorer-version` | empty | Exact local scorer contract version. |
+| `custom-scorer-executable` | empty | Direct executable; never selected by the suite or run through a shell. |
+| `custom-scorer-arguments-json` | `[]` | JSON array of literal argv items. |
+| `custom-scorer-timeout-seconds` | `10` | Per-case local scorer deadline, maximum 300 seconds. |
+| `custom-scorer-max-input-bytes` | `8388608` | Maximum serialized request size per case; raise explicitly for embedded image fixtures, up to 64 MiB. |
+| `custom-scorer-max-output-bytes` | `65536` | Maximum scorer stdout or stderr size per case, up to 1 MiB. |
 
 The action exposes `status`, `selected-model`, `route-version`,
 `final-test-pass-rate`, `case-regressions`, `quality-delta-pp`,

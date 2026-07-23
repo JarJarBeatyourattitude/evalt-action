@@ -21,7 +21,7 @@ class ActionContractTests(unittest.TestCase):
             "EVALT_ACTION_BASELINE": "out/baseline.json",
             "EVALT_ACTION_LIBRARY_ROOT": ".evalt/private-library",
             "EVALT_ACTION_OPTIMIZE": "true",
-            "EVALT_ACTION_VERSION": "0.10.30",
+            "EVALT_ACTION_VERSION": "0.10.31",
             "EVALT_ACTION_MIN_PASS_RATE": "0.97",
             "EVALT_ACTION_MAX_COST_PER_SUCCESS": "0.002",
             "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE": "true",
@@ -73,6 +73,50 @@ class ActionContractTests(unittest.TestCase):
             Path(".evalt/private-library"),
         )
 
+    def test_custom_scorer_is_forwarded_as_literal_argv(self):
+        command = optimize_command(self.settings(
+            EVALT_ACTION_CUSTOM_SCORER_ID="domain-rubric",
+            EVALT_ACTION_CUSTOM_SCORER_VERSION="1.0",
+            EVALT_ACTION_CUSTOM_SCORER_EXECUTABLE="python3",
+            EVALT_ACTION_CUSTOM_SCORER_ARGUMENTS_JSON='["tools/score.py","--strict"]',
+            EVALT_ACTION_CUSTOM_SCORER_TIMEOUT_SECONDS="12",
+            EVALT_ACTION_CUSTOM_SCORER_MAX_INPUT_BYTES="16777216",
+            EVALT_ACTION_CUSTOM_SCORER_MAX_OUTPUT_BYTES="131072",
+        ))
+        self.assertEqual(
+            command[command.index("--custom-scorer-id") + 1], "domain-rubric"
+        )
+        self.assertEqual(
+            command[command.index("--custom-scorer-version") + 1], "1.0"
+        )
+        self.assertEqual(
+            command[command.index("--custom-scorer-executable") + 1], "python3"
+        )
+        self.assertIn("--custom-scorer-arg=tools/score.py", command)
+        self.assertIn("--custom-scorer-arg=--strict", command)
+        self.assertEqual(
+            command[command.index("--custom-scorer-timeout") + 1], "12.0"
+        )
+        self.assertEqual(
+            command[command.index("--custom-scorer-max-input-bytes") + 1],
+            "16777216",
+        )
+        self.assertEqual(
+            command[command.index("--custom-scorer-max-output-bytes") + 1],
+            "131072",
+        )
+
+    def test_partial_or_non_array_custom_scorer_inputs_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must be set together"):
+            self.settings(EVALT_ACTION_CUSTOM_SCORER_ID="domain-rubric")
+        with self.assertRaisesRegex(ValueError, "JSON array of strings"):
+            self.settings(
+                EVALT_ACTION_CUSTOM_SCORER_ID="domain-rubric",
+                EVALT_ACTION_CUSTOM_SCORER_VERSION="1.0",
+                EVALT_ACTION_CUSTOM_SCORER_EXECUTABLE="python3",
+                EVALT_ACTION_CUSTOM_SCORER_ARGUMENTS_JSON='{"path":"score.py"}',
+            )
+
     def test_baseline_tolerances_are_rejected_without_nonnegative_numbers(self):
         for name, value in (
             ("EVALT_ACTION_MAX_REGRESSIONS", "-1"),
@@ -96,8 +140,8 @@ class ActionContractTests(unittest.TestCase):
 
     def test_current_release_installs_the_exact_hosted_wheel(self):
         self.assertEqual(
-            install_target("0.10.30"),
-            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.30-py3-none-any.whl",
+            install_target("0.10.31"),
+            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.31-py3-none-any.whl",
         )
         self.assertEqual(install_target("0.10.16"), "evalt==0.10.16")
 
@@ -109,6 +153,7 @@ class ActionContractTests(unittest.TestCase):
         self.assertIn("route-version:", metadata)
         self.assertIn("baseline:", inputs)
         self.assertIn("library-root:", inputs)
+        self.assertIn("custom-scorer-executable:", inputs)
         self.assertIn("case-regressions:", metadata)
 
     def test_route_version_output_is_explicit_and_empty_for_suite_only_results(self):
