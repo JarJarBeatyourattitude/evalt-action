@@ -118,6 +118,33 @@ scorer receives strict JSON on stdin, must return one bounded score object on st
 and does not inherit provider credentials by default. Only run custom scorers from
 trusted branches; they are executable repository code.
 
+## Send a signed aggregate decision
+
+Pass a GitHub Actions secret to send one content-free `ci.gate.pass`,
+`ci.gate.fail`, or `ci.gate.error` event:
+
+```yaml
+- uses: JarJarBeatyourattitude/evalt-action@v1
+  with:
+    suite: evalt.json
+    webhook-url: https://alerts.example.com/evalt
+    webhook-secret: ${{ secrets.EVALT_WEBHOOK_SECRET }}
+    webhook-destination-id: incident-pipeline
+    webhook-required: "true"
+```
+
+The event contains only an opaque route reference, gate status, suite hash, measured
+quality, and regression/cost/latency deltas. It omits the destination URL, secret,
+prompts, cases, images, outputs, reasons, scorer identity/code, and provider
+credentials. Evalt signs the exact body, uses a stable idempotency key, rejects
+redirects and non-public addresses by default, retries within explicit bounds, and
+writes an aggregate delivery audit. `webhook-delivered` and `webhook-event-id` are
+available as Action outputs.
+
+`webhook-include-route-name` and `webhook-allow-private-network` are explicit,
+off-by-default reductions of the privacy and network boundary. Use them only when the
+destination is authorized and trusted.
+
 ## Inputs that change the decision
 
 | Input | Default | Meaning |
@@ -126,7 +153,7 @@ trusted branches; they are executable repository code.
 | `optimize` | `true` | Run the tournament; `false` gates an existing result offline. |
 | `baseline` | empty | Earlier result from the identical frozen suite; enables regression gating. |
 | `library-root` | empty | Optional private local evidence-library directory used when `suite` or `baseline` is an immutable `@name` reference. |
-| `evalt-version` | `0.10.31` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
+| `evalt-version` | `0.10.32` | Exact package version. Mutable `latest` installs are rejected; the current default is the version-pinned wheel served by Evalt's hosted download. |
 | `min-pass-rate` | `0.95` | Required frozen final-test accuracy. |
 | `max-cost-per-success` | empty | Optional USD ceiling for one successful production call. |
 | `require-complete-coverage` | `true` | Reject unfinished decision-relevant coverage. |
@@ -145,10 +172,20 @@ trusted branches; they are executable repository code.
 | `custom-scorer-timeout-seconds` | `10` | Per-case local scorer deadline, maximum 300 seconds. |
 | `custom-scorer-max-input-bytes` | `8388608` | Maximum serialized request size per case; raise explicitly for embedded image fixtures, up to 64 MiB. |
 | `custom-scorer-max-output-bytes` | `65536` | Maximum scorer stdout or stderr size per case, up to 1 MiB. |
+| `webhook-url` | empty | Explicit HTTPS destination for one signed aggregate gate event. |
+| `webhook-secret` | empty | Signing secret supplied from GitHub Actions secrets; never written to Evalt artifacts. |
+| `webhook-destination-id` | `github` | Opaque local label retained in the delivery audit. |
+| `webhook-audit` | `.evalt/webhook-deliveries.jsonl` | Aggregate local delivery audit. |
+| `webhook-timeout-seconds` | `5` | Per-attempt HTTPS timeout, maximum 30 seconds. |
+| `webhook-max-attempts` | `3` | Bounded attempts from 1 through 5. |
+| `webhook-required` | `false` | Return Action error when the configured event cannot be delivered. |
+| `webhook-include-route-name` | `false` | Include the route label instead of only an opaque reference. |
+| `webhook-allow-private-network` | `false` | Permit a private/local destination; weakens the default SSRF boundary. |
 
 The action exposes `status`, `selected-model`, `route-version`,
 `final-test-pass-rate`, `case-regressions`, `quality-delta-pp`,
-`cost-per-1000-successful-calls-usd`, and all three evidence
+`cost-per-1000-successful-calls-usd`, `webhook-delivered`,
+`webhook-event-id`, and all three evidence
 paths as outputs. `route-version` is intentionally empty for a suite-only result and
 is populated only when the result artifact contains an explicit qualified route
 package ID. The same summary appears on the GitHub Actions run.

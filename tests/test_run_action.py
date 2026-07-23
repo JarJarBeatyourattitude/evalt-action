@@ -21,7 +21,7 @@ class ActionContractTests(unittest.TestCase):
             "EVALT_ACTION_BASELINE": "out/baseline.json",
             "EVALT_ACTION_LIBRARY_ROOT": ".evalt/private-library",
             "EVALT_ACTION_OPTIMIZE": "true",
-            "EVALT_ACTION_VERSION": "0.10.31",
+            "EVALT_ACTION_VERSION": "0.10.32",
             "EVALT_ACTION_MIN_PASS_RATE": "0.97",
             "EVALT_ACTION_MAX_COST_PER_SUCCESS": "0.002",
             "EVALT_ACTION_REQUIRE_COMPLETE_COVERAGE": "true",
@@ -117,6 +117,21 @@ class ActionContractTests(unittest.TestCase):
                 EVALT_ACTION_CUSTOM_SCORER_ARGUMENTS_JSON='{"path":"score.py"}',
             )
 
+    def test_webhook_requires_a_url_and_secret_pair_and_redacts_repr(self):
+        with self.assertRaisesRegex(ValueError, "must be set together"):
+            self.settings(EVALT_ACTION_WEBHOOK_URL="https://hooks.example.test/evalt")
+        configured = self.settings(
+            EVALT_ACTION_WEBHOOK_URL="https://hooks.example.test/evalt",
+            EVALT_ACTION_WEBHOOK_SECRET="fixture-secret-at-least-16-bytes",
+            EVALT_ACTION_WEBHOOK_DESTINATION_ID="incident-pipeline",
+            EVALT_ACTION_WEBHOOK_REQUIRED="true",
+            EVALT_ACTION_WEBHOOK_MAX_ATTEMPTS="4",
+        )
+        self.assertTrue(configured.webhook_required)
+        self.assertEqual(configured.webhook_max_attempts, 4)
+        self.assertEqual(configured.webhook_destination_id, "incident-pipeline")
+        self.assertNotIn("fixture-secret", repr(configured))
+
     def test_baseline_tolerances_are_rejected_without_nonnegative_numbers(self):
         for name, value in (
             ("EVALT_ACTION_MAX_REGRESSIONS", "-1"),
@@ -140,8 +155,8 @@ class ActionContractTests(unittest.TestCase):
 
     def test_current_release_installs_the_exact_hosted_wheel(self):
         self.assertEqual(
-            install_target("0.10.31"),
-            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.31-py3-none-any.whl",
+            install_target("0.10.32"),
+            "https://evalt.onrender.com/python-sdk/dist/evalt-0.10.32-py3-none-any.whl",
         )
         self.assertEqual(install_target("0.10.16"), "evalt==0.10.16")
 
@@ -154,6 +169,9 @@ class ActionContractTests(unittest.TestCase):
         self.assertIn("baseline:", inputs)
         self.assertIn("library-root:", inputs)
         self.assertIn("custom-scorer-executable:", inputs)
+        self.assertIn("webhook-secret:", inputs)
+        self.assertIn("webhook-delivered:", metadata)
+        self.assertIn("EVALT_ACTION_WEBHOOK_SECRET", metadata)
         self.assertIn("case-regressions:", metadata)
 
     def test_route_version_output_is_explicit_and_empty_for_suite_only_results(self):

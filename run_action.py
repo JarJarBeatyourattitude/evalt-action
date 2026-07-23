@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 
 
 PINNED_VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9_.+!-]*)?$")
-CURRENT_HOSTED_VERSION = "0.10.31"
+CURRENT_HOSTED_VERSION = "0.10.32"
 
 
 def _bool(name: str, default: str) -> bool:
@@ -79,6 +79,15 @@ class Settings:
     custom_scorer_timeout_seconds: str
     custom_scorer_max_input_bytes: str
     custom_scorer_max_output_bytes: str
+    webhook_url: str | None
+    webhook_secret: str | None = field(repr=False)
+    webhook_destination_id: str
+    webhook_audit: Path
+    webhook_timeout_seconds: float
+    webhook_max_attempts: int
+    webhook_required: bool
+    webhook_include_route_name: bool
+    webhook_allow_private_network: bool
     html_report: Path
     junit_report: Path
 
@@ -137,6 +146,29 @@ class Settings:
         scorer_max_output = _optional_number(
             "EVALT_ACTION_CUSTOM_SCORER_MAX_OUTPUT_BYTES", integer=True
         ) or "65536"
+        webhook_url = os.environ.get("EVALT_ACTION_WEBHOOK_URL", "").strip()
+        webhook_secret = os.environ.get("EVALT_ACTION_WEBHOOK_SECRET", "")
+        if bool(webhook_url) != bool(webhook_secret):
+            raise ValueError(
+                "webhook-url and webhook-secret must be set together"
+            )
+        webhook_destination_id = os.environ.get(
+            "EVALT_ACTION_WEBHOOK_DESTINATION_ID", "github"
+        ).strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", webhook_destination_id):
+            raise ValueError("webhook-destination-id is invalid")
+        webhook_timeout = float(
+            _optional_number("EVALT_ACTION_WEBHOOK_TIMEOUT_SECONDS") or "5"
+        )
+        webhook_attempts = int(
+            _optional_number(
+                "EVALT_ACTION_WEBHOOK_MAX_ATTEMPTS", integer=True
+            ) or "3"
+        )
+        if webhook_timeout > 30:
+            raise ValueError("webhook-timeout-seconds cannot exceed 30")
+        if webhook_attempts > 5:
+            raise ValueError("webhook-max-attempts cannot exceed 5")
         settings = cls(
             suite=Path(os.environ.get("EVALT_ACTION_SUITE", "evalt.json")),
             result=Path(os.environ.get("EVALT_ACTION_RESULT", "evalt-result.json")),
@@ -188,6 +220,24 @@ class Settings:
             custom_scorer_timeout_seconds=scorer_timeout,
             custom_scorer_max_input_bytes=scorer_max_input,
             custom_scorer_max_output_bytes=scorer_max_output,
+            webhook_url=webhook_url or None,
+            webhook_secret=webhook_secret or None,
+            webhook_destination_id=webhook_destination_id,
+            webhook_audit=Path(
+                os.environ.get(
+                    "EVALT_ACTION_WEBHOOK_AUDIT",
+                    ".evalt/webhook-deliveries.jsonl",
+                )
+            ),
+            webhook_timeout_seconds=webhook_timeout,
+            webhook_max_attempts=webhook_attempts,
+            webhook_required=_bool("EVALT_ACTION_WEBHOOK_REQUIRED", "false"),
+            webhook_include_route_name=_bool(
+                "EVALT_ACTION_WEBHOOK_INCLUDE_ROUTE_NAME", "false"
+            ),
+            webhook_allow_private_network=_bool(
+                "EVALT_ACTION_WEBHOOK_ALLOW_PRIVATE_NETWORK", "false"
+            ),
             html_report=Path(
                 os.environ.get("EVALT_ACTION_HTML_REPORT", "evalt-report.html")
             ),
@@ -205,6 +255,67 @@ class Settings:
                 "Baseline regression inputs require the baseline input."
             )
         return settings
+
+
+def _deliver_gate_webhook(
+    settings: Settings,
+    *,
+    status: str,
+    payload: Mapping[str, Any],
+    gate: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    if not settings.webhook_url:
+        return None
+    try:
+        from evalt import (
+            WebhookDestination,
+            WebhookError,
+            ci_gate_event,
+            deliver_webhook,
+        )
+    except (ImportError, AttributeError) as error:
+        return {
+            "schema": "evalt-webhook-delivery-summary-v1",
+            "event_id": "",
+            "destination_id": settings.webhook_destination_id,
+            "delivered": False,
+            "attempts": 0,
+            "status_code": None,
+            "result": "sdk_unavailable",
+            "error": str(error)[:180],
+            "audit_path": str(settings.webhook_audit),
+        }
+
+    destination = WebhookDestination(
+        url=settings.webhook_url,
+        secret=str(settings.webhook_secret),
+        destination_id=settings.webhook_destination_id,
+        audit_path=settings.webhook_audit,
+        timeout_seconds=settings.webhook_timeout_seconds,
+        max_attempts=settings.webhook_max_attempts,
+        include_route_name=settings.webhook_include_route_name,
+        allow_private_network=settings.webhook_allow_private_network,
+    )
+    try:
+        event = ci_gate_event(
+            status=status,
+            result=payload,
+            gate=gate,
+            destination=destination,
+        )
+        return deliver_webhook(destination, event).summary()
+    except WebhookError as error:
+        return {
+            "schema": "evalt-webhook-delivery-summary-v1",
+            "event_id": "",
+            "destination_id": settings.webhook_destination_id,
+            "delivered": False,
+            "attempts": 0,
+            "status_code": None,
+            "result": "configuration_or_audit_error",
+            "error": str(error)[:180],
+            "audit_path": str(settings.webhook_audit),
+        }
 
 
 def _evalt(*args: str) -> list[str]:
@@ -519,6 +630,12 @@ def main() -> int:
             if gate_process.returncode == 1
             else "ERROR"
         )
+        webhook_delivery = _deliver_gate_webhook(
+            settings,
+            status=status,
+            payload=payload,
+            gate=gate,
+        )
         _write_output("status", status)
         _write_output("selected-model", winner.get("model") or "")
         _write_output("route-version", _route_version(payload, winner))
@@ -538,12 +655,59 @@ def main() -> int:
         _write_output("result", settings.result)
         _write_output("html-report", settings.html_report)
         _write_output("junit-report", settings.junit_report)
+        _write_output(
+            "webhook-delivered",
+            (
+                ""
+                if webhook_delivery is None
+                else str(bool(webhook_delivery.get("delivered"))).lower()
+            ),
+        )
+        _write_output(
+            "webhook-event-id",
+            "" if webhook_delivery is None else webhook_delivery.get("event_id", ""),
+        )
         _write_summary(settings, status=status, payload=payload, gate=gate)
+        if (
+            settings.webhook_required
+            and (
+                webhook_delivery is None
+                or not webhook_delivery.get("delivered")
+            )
+        ):
+            print(
+                "evalt-action: the required aggregate webhook was not delivered; "
+                f"audit: {settings.webhook_audit}",
+                file=sys.stderr,
+            )
+            return 2
         return gate_process.returncode
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
         print(f"evalt-action: {error}", file=sys.stderr)
         _write_output("status", "ERROR")
         if settings is not None:
+            webhook_delivery = _deliver_gate_webhook(
+                settings,
+                status="ERROR",
+                payload=payload,
+                gate={},
+            )
+            _write_output(
+                "webhook-delivered",
+                (
+                    ""
+                    if webhook_delivery is None
+                    else str(bool(webhook_delivery.get("delivered"))).lower()
+                ),
+            )
+            _write_output(
+                "webhook-event-id",
+                (
+                    ""
+                    if webhook_delivery is None
+                    else webhook_delivery.get("event_id", "")
+                ),
+            )
             _write_summary(settings, status="ERROR", payload=payload, error=str(error))
         return 2
 
